@@ -3,30 +3,33 @@ pragma solidity ^0.5.0;
 contract DVideo {
   uint public videoCount = 0;
   string public name = "DVideo";
-  //Create id=>struct mapping
+  mapping(uint => Video) public videos;
 
-  //Create Struct
+  struct Video {
+    uint id;
+    string hash;
+    string title;
+    address author;
+  }
 
-
-  //Create Event
-
+  event VideoUploaded(
+    uint id,
+    string hash,
+    string title,
+    address author
+  );
 
   constructor() public {
   }
 
   function uploadVideo(string memory _videoHash, string memory _title) public {
-    // Make sure the video hash exists
+    require(bytes(_videoHash).length > 0);
+    require(bytes(_title).length > 0);
+    require(msg.sender != address(0));
 
-    // Make sure video title exists
+    videoCount++;
+    videos[videoCount] = Video(videoCount, _videoHash, _title, msg.sender);
 
-    // Make sure uploader address exists
-
-
-    // Increment video id
-
-    // Add video to the contract
-
-    // Trigger an event
-
+    emit VideoUploaded(videoCount, _videoHash, _title, msg.sender);
   }
 }
