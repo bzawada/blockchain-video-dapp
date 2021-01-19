@@ -7,11 +7,11 @@ import './App.css';
 
 //Declare IPFS
 const ipfsClient = require('ipfs-http-client')
-const ipfs = ipfsClient({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' }) // leaving out the arguments will default to these values
+const ipfs = ipfsClient({ host: 'ipfs.infura.io', port: 5001, protocol: 'https' })
 
 class App extends Component {
 
-  async componentWillMount() {
+  async componentDidMount() {
     await this.loadWeb3()
     await this.loadBlockchainData()
   }
@@ -31,62 +31,92 @@ class App extends Component {
 
   async loadBlockchainData() {
     const web3 = window.web3
-    //Load accounts
-    //Add first account the the state
+    const accounts = await web3.eth.getAccounts()
+    this.setState({ account: accounts[0] })
 
-    //Get network ID
-    //Get network data
-    //Check if net data exists, then
-      //Assign dvideo contract to a variable
-      //Add dvideo to the state
+    const networkId = await web3.eth.net.getId()
+    const networkData = DVideo.networks[networkId]
+    if (networkData) {
+      const dvideo = new web3.eth.Contract(DVideo.abi, networkData.address)
+      this.setState({ dvideo })
+      const videosCount = await dvideo.methods.videoCount().call()
+      this.setState({ videosCount })
 
-      //Check videoAmounts
-      //Add videAmounts to the state
+      for(let i = videosCount; i>= 1; i--) {
+        const video = await dvideo.methods.videos(i).call()
+        this.setState({ videos: [...this.state.videos, video]})
+      }
 
-      //Iterate throught videos and add them to the state (by newest)
-
-
-      //Set latest video and it's title to view as default 
-      //Set loading state to false
-
-      //If network data doesn't exisits, log error
+      const latest = await dvideo.methods.videos(videosCount).call()
+      this.setState({
+        currentHash: latest.hash,
+        currentTitle: latest.title
+      })
+      this.setState({ loading: false })
+    } else {
+      window.alert('DVideo contract not deployed to detected network')
+    }
   }
 
-  //Get video
   captureFile = event => {
+    event.preventDefault()
+    const file = event.target.files[0]
+    const reader = new window.FileReader()
+    reader.readAsArrayBuffer(file)
 
+    reader.onloadend = () => {
+      this.setState({ buffer: Buffer(reader.result) })
+    }
   }
 
-  //Upload video
   uploadVideo = title => {
-
+    this.setState({ loading: true })
+    ipfs.add(this.state.buffer, (error, result) => {
+      if (error) {
+        console.error(error)
+        return
+      }
+      this.state.dvideo.methods
+        .uploadVideo(result[0].hash, title)
+        .send({ from: this.state.account})
+        .on('transactionHash', () => {
+          this.setState({ loading: false})
+        })
+    })
   }
 
-  //Change Video
   changeVideo = (hash, title) => {
-
+    this.setState({ currentHash: hash, currentTitle: title})
   }
 
   constructor(props) {
     super(props)
     this.state = {
-      loading: false
-      //set states
+      loading: false,
+      account: '',
+      dvideo: null,
+      videos: [],
+      videosCount: 0,
+      currentHash: '',
+      currentTitle: ''
     }
-
-    //Bind functions
   }
 
   render() {
     return (
       <div>
-        <Navbar 
-          //Account
+        <Navbar
+            account={this.state.account}
         />
         { this.state.loading
           ? <div id="loader" className="text-center mt-5"><p>Loading...</p></div>
           : <Main
-              //states&functions
+              captureFile={this.captureFile}
+              uploadVideo={this.uploadVideo}
+              currentHash={this.state.currentHash}
+              currentTitle={this.state.currentTitle}
+              videos={this.state.videos}
+              changeVideo={this.changeVideo}
             />
         }
       </div>
